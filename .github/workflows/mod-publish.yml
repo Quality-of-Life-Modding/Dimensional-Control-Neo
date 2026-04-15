@@ -1,18 +1,25 @@
-name: Automatically build to and publish to GitHub.
-
-# This action is triggered when a GitHub release is published.
-# The release title is used as version name, and the release tag is validated
-# against mod_version from gradle.properties.
+name: Java CI + Release
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - '*.*'
+      - '*.*.*'
+      - '*.*_dev'
+      - '*.*.*_dev'
+  pull_request:
+    branches:
+      - '*.*'
+      - '*.*.*'
+      - '*.*_dev'
+      - '*.*.*_dev'
   release:
     types: [published]
 
 env:
   MOD_LOADER: forge
   GAME_VERSION_FILTER: releases
-  VERSION_TYPE: release
   PRIMARY_FILE_GLOB: "*.jar"
 
 jobs:
@@ -20,19 +27,19 @@ jobs:
     name: Build JAR
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
     outputs:
-      mod_version: ${{ steps.release_meta.outputs.mod_version }}
-      mc_version: ${{ steps.release_meta.outputs.mc_version }}
-      java_version: ${{ steps.release_meta.outputs.java_version }}
-      game_versions: ${{ steps.release_meta.outputs.game_versions }}
+      mod_version: ${{ steps.meta.outputs.mod_version }}
+      mc_version: ${{ steps.meta.outputs.mc_version }}
+      java_version: ${{ steps.meta.outputs.java_version }}
+      game_versions: ${{ steps.meta.outputs.game_versions }}
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Read release metadata from gradle.properties
-        id: release_meta
+      - name: Read metadata from gradle.properties
+        id: meta
         shell: bash
         run: |
           mod_version=$(grep -E '^mod_version\s*=' gradle.properties | head -n1 | cut -d'=' -f2- | xargs)
@@ -59,35 +66,45 @@ jobs:
           echo "java_version=$java_version" >> "$GITHUB_OUTPUT"
           echo "game_versions=[\"$minecraft_version\"]" >> "$GITHUB_OUTPUT"
 
-      - name: Setup Java
+      - name: Set up JDK
         uses: actions/setup-java@v4
         with:
-          distribution: zulu
-          java-version: ${{ steps.release_meta.outputs.java_version }}
+          distribution: temurin
+          java-version: ${{ steps.meta.outputs.java_version }}
           cache: gradle
 
       - name: Set execution permissions for Gradle wrapper
         run: chmod +x gradlew
 
-      - name: Validate release tag matches mod_version
-        if: github.event_name == 'release'
-        shell: bash
-        run: |
-          tag="${GITHUB_REF#refs/tags/}"
-          tag="${tag#v}"
-          if [[ "$tag" != "${{ steps.release_meta.outputs.mod_version }}" ]]; then
-            echo "ERROR: Release tag '$tag' does not match mod_version '${{ steps.release_meta.outputs.mod_version }}' from gradle.properties" >&2
-            exit 1
-          fi
-
-      - name: Build Release
+      - name: Build with Gradle Wrapper
         run: ./gradlew build
 
       - name: Upload artifacts
+        if: github.event_name == 'release'
         uses: actions/upload-artifact@v4
         with:
           name: build-artifacts
           path: build/libs/${{ env.PRIMARY_FILE_GLOB }}
+
+  dependency-submission:
+    name: Dependency Submission
+    if: github.event_name != 'release'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Generate and submit dependency graph
+        uses: gradle/actions/dependency-submission@v4
 
   publish-to-github:
     name: Attach JAR to GitHub Release
@@ -98,21 +115,44 @@ jobs:
       contents: write
 
     steps:
-      - name: Detect source branch and set warning state
+      - name: Detect branch and release type
         id: release_context
         shell: bash
         run: |
           source_branch="${{ github.event.release.target_commitish }}"
 
+          is_valid_release_branch=false
           is_dev_source=false
-          if [[ "$source_branch" == *"_dev"* ]]; then
+
+          if [[ "$source_branch" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?(_dev)?$ ]]; then
+            is_valid_release_branch=true
+          fi
+
+          if [[ "$source_branch" =~ _dev$ ]]; then
             is_dev_source=true
           fi
 
           {
             echo "source_branch=$source_branch"
+            echo "is_valid_release_branch=$is_valid_release_branch"
             echo "is_dev_source=$is_dev_source"
           } >> "$GITHUB_OUTPUT"
+
+      - name: Require semver or semver_dev branch
+        if: steps.release_context.outputs.is_valid_release_branch != 'true'
+        run: |
+          echo "ERROR: Release must come from a branch named like 1.20, 1.20.1, 1.20_dev, or 1.20.1_dev"
+          exit 1
+
+      - name: Validate release tag matches mod_version
+        shell: bash
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          tag="${tag#v}"
+          if [[ "$tag" != "${{ needs.build.outputs.mod_version }}" ]]; then
+            echo "ERROR: Release tag '$tag' does not match mod_version '${{ needs.build.outputs.mod_version }}' from gradle.properties" >&2
+            exit 1
+          fi
 
       - name: Download artifacts
         uses: actions/download-artifact@v4
@@ -120,22 +160,22 @@ jobs:
           name: build-artifacts
           path: artifacts
 
-      - name: Add BIG alpha warning to release body when publishing from _dev branch
+      - name: Add alpha warning to release body
         if: steps.release_context.outputs.is_dev_source == 'true'
         uses: actions/github-script@v7
         with:
           script: |
             const warning = [
-              '## ⚠️⚠️⚠️ BIG WARNING: ALPHA SOFTWARE ⚠️⚠️⚠️',
+              '## WARNING',
               '',
-              '**This build was published from a `_dev` branch and is ALPHA software.**',
-              '**It has not been tested to work at all. Use at your own risk.**',
+              '**THIS RELEASE IS ALPHA UNTESTED SOFTWARE.**',
               ''
             ].join('\n');
 
             const release = context.payload.release;
             const existingBody = release.body || '';
-            if (!existingBody.includes('BIG WARNING: ALPHA SOFTWARE')) {
+
+            if (!existingBody.includes('THIS RELEASE IS ALPHA UNTESTED SOFTWARE.')) {
               await github.rest.repos.updateRelease({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
@@ -144,13 +184,13 @@ jobs:
               });
             }
 
-      - name: Publish to GitHub
+      - name: Publish to GitHub Release
         uses: Kir-Antipov/mc-publish@v3.3
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           github-prerelease: ${{ steps.release_context.outputs.is_dev_source == 'true' }}
           files: artifacts/${{ env.PRIMARY_FILE_GLOB }}
-          version-type: ${{ env.VERSION_TYPE }}
+          version-type: ${{ steps.release_context.outputs.is_dev_source == 'true' && 'alpha' || 'release' }}
           loaders: ${{ env.MOD_LOADER }}
           game-versions: ${{ needs.build.outputs.game_versions }}
           game-version-filter: ${{ env.GAME_VERSION_FILTER }}
