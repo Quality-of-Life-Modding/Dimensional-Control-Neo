@@ -37,8 +37,19 @@ public abstract class StructureStartMixin
 
         Rules.parseRules(Rule.Type.STRUCTURE, registryAccess);
 
-        Rule rule = Rules.structureRules.get(dimensionLocation);
-        if (rule != null && rule.isRestricted(structureLocation))
+        Rule structureRule = Rules.structureRules.get(dimensionLocation);
+        if (structureRule != null)
+        {
+            if (structureRule.isRestricted(structureLocation))
+            {
+                callbackInfo.cancel();
+            }
+            return;
+        }
+
+        Rules.parseRules(Rule.Type.DIMENSION, registryAccess);
+        Rule dimensionRule = Rules.dimensionRules.get(dimensionLocation);
+        if (dimensionRule != null && dimensionRule.isRestricted(structureLocation))
         {
             callbackInfo.cancel();
         }
