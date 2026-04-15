@@ -1,130 +1,128 @@
-# Dimensional Control Neo 
-Previously called Dimensional Structure Restrict (DimStructRestrict)
+# Dimensional Control Neo
+Previously called **Dimensional Structure Restrict (DimStructRestrict)**.
 
-Dimensional Control Neo  is a lightweight Minecraft Forge mod for **Minecraft 1.20.1** that allows you to **control where structures can spawn** based on dimension and structure rules. Designed and developed by **Troy Cook (@cookta2012)**, this mod provides fine-grained control over world generation behavior — especially useful for modpack developers and world designers.
-
-Initial release will be 1.20.1 other versions will be coming later.
+Dimensional Control Neo is a lightweight Minecraft Forge mod for **Minecraft 1.20.1** that lets you control worldgen and other content behavior by dimension-scoped rules.
 
 ---
 
-## 🌍 Features
+## Credits
 
-- Prevent or allow specific structures from generating in specific dimensions.
-- Define whitelist or blacklist rules.
-- Optionally flag structures to not place the structure while it believes it placed it.
-- JSON-based configuration — supports comments and regenerates missing keys automatically.
-- Logs rule enforcement with structure/dimension context for debugging.
+- **Troy Cook** ([@cookta2012](https://github.com/cookta2012)) — original mod author and maintainer.
+- **Matt** (`matt/dimensionalcontrol`) — core rewrite/backport contributions that this branch builds on.
 
 ---
 
-## 🔧 Configuration
+## Features
 
-The config file is located at:
+- Dimension-scoped rule definitions.
+- Rule categories currently supported in config:
+  - `dimensions`
+  - `structures`
+  - `structurePoolElements`
+  - `features`
+  - `entities`
+  - `loot`
+- `whitelist` / `blacklist` modes.
+- Optional `always_report_success` flag (legacy `false_place` key is still accepted for backward compatibility).
+- Expanded resolved output is written for debugging.
+
+---
+
+## Configuration
+
+Primary config path:
+
+```text
+<minecraft_root>/config/dimensionalcontrolneo/definitions.json
 ```
-<minecraft_root>/config/dimstructrestrict.json
+
+Expanded/debug output path:
+
+```text
+<minecraft_root>/config/dimensionalcontrolneo/expanded-definitions.json
 ```
 
-If the file doesn't exist, it will be generated with example entries.
+If `definitions.json` does not exist, the mod generates a starter template.
 
 ---
 
-### 📐 Structure of `dimstructrestrict.json`
+## `definitions.json` shape
 
 ```jsonc
 {
-  "structures": [
-    {                                       // Individual structure rules will override dimension rules FULL STOP
-      "id": "minecraft:village_plains",     // Structure ID
-      "whitelist": ["minecraft:overworld"], // Allowed dimensions
-      "false_place": false,                 // If true, the structure will be "falsely placed" (may break mods)
-      "active": true                        // Whether this rule is active
-    }
-  ],
   "dimensions": [
     {
-      "id": "minecraft:overworld",        // Dimension ID
-      "whitelist": [],                    // Structures allowed in this dimension
+      "dimension": "minecraft:overworld",
+      "whitelist": [],
+      "always_report_success": false,
+      "active": true
+    }
+  ],
+  "structures": [
+    {
+      "dimension": "minecraft:overworld",
+      "whitelist": ["minecraft:village_plains"],
+      "always_report_success": false,
+      "active": true
+    }
+  ],
+  "structurePoolElements": [
+    {
+      "dimension": "minecraft:overworld",
+      "blacklist": ["minecraft:empty"],
+      "active": true
+    }
+  ],
+  "features": [
+    {
+      "dimension": "minecraft:overworld",
+      "blacklist": ["minecraft:lake_lava_underground"],
+      "active": true
+    }
+  ],
+  "entities": [
+    {
+      "dimension": "minecraft:.+",
+      "whitelist": [],
+      "active": true
+    }
+  ],
+  "loot": [
+    {
+      "dimension": "minecraft:.+",
+      "blacklist": [],
       "active": true
     }
   ]
 }
 ```
 
----
-
-## 🧠 Rule Types
-
-### ✅ `whitelist`
-Only listed dimensions or structures are allowed.
-
-### ❌ `blacklist`
-Listed dimensions or structures will be prevented.
-
-### ⚙️ `false_place` (optional, default `false`)
-If `true`, prevents the structure from placing **without skipping the generation step** meaning it is marked on the map as generated.
-
-> ⚠️ May cause issues with some structure-dependent mods.
-
-### 🔄 `active` (optional, default `false`)
-Controls whether the rule is enforced. Useful for temporarily disabling rules without removing them.
+Notes:
+- Exactly one of `whitelist` or `blacklist` should be present on a rule.
+- `active` defaults to `false` if omitted.
+- `always_report_success` defaults to `false` if omitted.
+- Legacy `false_place` is read as an alias for `always_report_success`.
 
 ---
 
-## 🧪 Example Use Case
+## Rule semantics
 
-```json
-{
-  "structures": [
-    {
-      "id": "minecraft:ruined_portal",
-      "blacklist": ["minecraft:the_end", "minecraft:the_nether"],
-      "active": true
-    }
-  ],
-  "dimensions": [
-    {
-      "id": "minecraft:overworld",
-      "whitelist": ["minecraft:village_savanna", "minecraft:village_plains"],
-      "false_place": true,
-      "active": true
-    }
-  ]
-}
+- **Structure rules are checked first**.
+- If no structure-specific rule applies, **dimension rule fallback** is used.
+- Rules can be disabled without removing them by setting `active: false`.
+
+---
+
+## Build
+
+Use Java 17:
+
+```bash
+./gradlew build
 ```
 
 ---
 
-## 🛠️ Advanced Setup
-
-The mod uses a generic `Rule` system internally with two maps:
-
-- `STRUCTURE_RULES` for structure-specific rules
-- `DIMENSION_RULES` for dimension-based restrictions
-
-Each `Rule` is backed by:
-- `id`: ResourceLocation
-- `mode`: WHITELIST or BLACKLIST
-- `resource`: Set of targets (structure/dimension IDs)
-- `false_place`: Boolean
-- `active`: Boolean
-
----
-
-## 🧑‍💻 Developer Notes
-
-- Author: **Troy Cook**
-- GitHub: [@cookta2012](https://github.com/cookta2012)
-- Language: Java
-- Environment: Minecraft Forge for Minecraft 1.20.1
-
----
-
-## 📄 License
+## License
 
 MIT License.
-
----
-
-## 📬 Feedback & Contributions
-
-Feel free to open an issue or fork the project if you'd like to expand the system (e.g., gamerule-based control, datapack integration, or GUI support).

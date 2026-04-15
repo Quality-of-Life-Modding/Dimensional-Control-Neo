@@ -6,7 +6,6 @@ import com.google.gson.*;
 import com.google.gson.stream.JsonReader;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.resources.ResourceLocation;
-import org.apache.commons.lang3.NotImplementedException;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.BufferedReader;
@@ -22,11 +21,13 @@ public class Rules
     private static final Path expandedDefinitionsFilePath = CONFIG_PATH.resolve(String.format("%s.json", "expanded-definitions"));
 
     public static final Map<ResourceLocation, Rule> structureRules = new HashMap<>();
+    public static final Map<ResourceLocation, Rule> dimensionRules = new HashMap<>();
     public static final Map<ResourceLocation, Rule> structurePoolElementRules = new HashMap<>();
     public static final Map<ResourceLocation, Rule> featureRules = new HashMap<>();
     public static final Map<ResourceLocation, Rule> entityRules = new HashMap<>();
     public static final Map<ResourceLocation, Rule> lootRules = new HashMap<>();
 
+    public static JsonArray unparsedDimensionRules = null;
     public static JsonArray unparsedStructureRules = null;
     public static JsonArray unparsedStructurePoolElementRules = null;
     public static JsonArray unparsedFeatureRules = null;
@@ -37,7 +38,14 @@ public class Rules
     {
         switch (ruleType)
         {
-            case DIMENSION -> throw new NotImplementedException();
+            case DIMENSION ->
+            {
+                if (unparsedDimensionRules != null)
+                {
+                    parseRuleArray(registryAccess, Rule.Type.DIMENSION);
+                    unparsedDimensionRules = null;
+                }
+            }
             case STRUCTURE ->
             {
                 if (unparsedStructureRules != null)
@@ -75,7 +83,7 @@ public class Rules
                 if (unparsedLootRules != null)
                 {
                     parseRuleArray(registryAccess, Rule.Type.LOOT);
-                    unparsedEntityRules = null;
+                    unparsedLootRules = null;
                 }
             }
         }
@@ -89,10 +97,19 @@ public class Rules
             {
                 Files.writeString(definitionsFilePath, """
                         {
+                            "dimensions": [
+                                {
+                                    "dimension": "minecraft:overworld",
+                                    "whitelist": [],
+                                    "always_report_success": false,
+                                    "active": true
+                                }
+                            ],
                             "structures": [
                                 {
                                     "dimension": "minecraft:overworld",
                                     "whitelist": [],
+                                    "always_report_success": false,
                                     "active": true
                                 }
                             ],
@@ -138,6 +155,10 @@ public class Rules
                 if (root.isJsonObject())
                 {
                     JsonObject rootJsonObject = root.getAsJsonObject();
+                    if (rootJsonObject.has("dimensions"))
+                    {
+                        unparsedDimensionRules = rootJsonObject.getAsJsonArray("dimensions");
+                    }
                     if (rootJsonObject.has("structures"))
                     {
                         unparsedStructureRules = rootJsonObject.getAsJsonArray("structures");
@@ -176,6 +197,14 @@ public class Rules
     public static void saveExpandedJsonConfig()
     {
         JsonObject rootJsonObject = new JsonObject();
+
+        JsonArray dimensionsArray = new JsonArray();
+        for (Map.Entry<ResourceLocation, Rule> entry : dimensionRules.entrySet())
+        {
+            JsonObject dimensionRuleJsonObject = getRuleJson(entry);
+            dimensionsArray.add(dimensionRuleJsonObject);
+        }
+        rootJsonObject.add("dimensions", dimensionsArray);
 
         JsonArray structuresArray = new JsonArray();
         for (Map.Entry<ResourceLocation, Rule> entry : structureRules.entrySet())
@@ -248,6 +277,7 @@ public class Rules
             ruleJsonObject.add("blacklist", list);
         }
 
+        ruleJsonObject.addProperty("always_report_success", rule.getAlwaysReportSuccess() != null ? rule.getAlwaysReportSuccess() : false);
         ruleJsonObject.addProperty("active", rule.getActive() != null ? rule.getActive() : false);
         return ruleJsonObject;
     }
@@ -256,7 +286,7 @@ public class Rules
     {
         JsonArray rulesJsonArray = switch (ruleType)
         {
-            case DIMENSION -> throw new NotImplementedException();
+            case DIMENSION -> unparsedDimensionRules;
             case STRUCTURE -> unparsedStructureRules;
             case STRUCTURE_POOL_ELEMENT -> unparsedStructurePoolElementRules;
             case FEATURE -> unparsedFeatureRules;
@@ -265,7 +295,7 @@ public class Rules
         };
         Map<ResourceLocation, Rule> dimensionRuleMap = switch (ruleType)
         {
-            case DIMENSION -> throw new NotImplementedException();
+            case DIMENSION -> dimensionRules;
             case STRUCTURE -> structureRules;
             case STRUCTURE_POOL_ELEMENT -> structurePoolElementRules;
             case FEATURE -> featureRules;
@@ -297,6 +327,16 @@ public class Rules
                 resourceLocationStrings.add(resourceLocationJsonElement.getAsString());
             }
 
+            Boolean alwaysReportSuccess = false;
+            if (ruleJsonObject.has("always_report_success"))
+            {
+                alwaysReportSuccess = ruleJsonObject.get("always_report_success").getAsBoolean();
+            }
+            else if (ruleJsonObject.has("false_place"))
+            {
+                alwaysReportSuccess = ruleJsonObject.get("false_place").getAsBoolean();
+            }
+
             Boolean active = ruleJsonObject.has("active") && ruleJsonObject.get("active").getAsBoolean();
 
             Set<ResourceLocation> resourceLocations = new HashSet<>();
@@ -307,7 +347,7 @@ public class Rules
 
             for (ResourceLocation dimensionLocation : ResourceLocationHelpers.expandLocation(Rule.Type.DIMENSION, registryAccess, dimensionLocationString))
             {
-                dimensionRuleMap.put(dimensionLocation, new Rule(dimensionLocation, ruleType, mode, resourceLocations, active));
+                dimensionRuleMap.put(dimensionLocation, new Rule(dimensionLocation, ruleType, mode, resourceLocations, alwaysReportSuccess, active));
             }
         }
     }

@@ -28,6 +28,7 @@ public class Rule
     private final Type type;
     private final Mode mode;
     private final Set<ResourceLocation> resourceLocations;
+    private final Boolean alwaysReportSuccess;
     private final Boolean active;
 
     public Set<ResourceLocation> getResourceLocations()
@@ -45,12 +46,18 @@ public class Rule
         return active;
     }
 
-    public Rule(ResourceLocation dimensionLocation, Type type, Mode mode, Set<ResourceLocation> resources, Boolean active)
+    public Boolean getAlwaysReportSuccess()
+    {
+        return alwaysReportSuccess;
+    }
+
+    public Rule(ResourceLocation dimensionLocation, Type type, Mode mode, Set<ResourceLocation> resources, Boolean alwaysReportSuccess, Boolean active)
     {
         this.dimensionLocation = dimensionLocation;
         this.type = type;
         this.mode = mode;
         this.resourceLocations = resources;
+        this.alwaysReportSuccess = alwaysReportSuccess;
         this.active = active;
     }
 
@@ -75,13 +82,14 @@ public class Rule
         Rule rule = (Rule) o;
         return Objects.equals(mode, rule.mode)
                 && Objects.equals(resourceLocations, rule.resourceLocations)
+                && Objects.equals(alwaysReportSuccess, rule.alwaysReportSuccess)
                 && Objects.equals(active, rule.active);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(mode, resourceLocations, active);
+        return Objects.hash(mode, resourceLocations, alwaysReportSuccess, active);
     }
 
     @Override
@@ -93,6 +101,7 @@ public class Rule
                         "type = \"" + type + "\"" +
                         "mode = \"" + mode + "\"" +
                         "resources = \"" + resourceLocations + "\"" +
+                        "always_report_success = \"" + alwaysReportSuccess + "\"" +
                         "active = \"" + active + "\"" +
                         '}';
     }
@@ -100,12 +109,20 @@ public class Rule
 
     public Boolean isRestricted(ResourceLocation targetResource)
     {
-        // Short circuit due to rule inactive or false_place active
+        // Short circuit due to rule inactive or always_report_success active.
         if (!this.active)
         {
             if (Config.debug)
             {
                 GroupingLogger.logDebug(String.format("Rule not active: %s", this));
+            }
+            return false;
+        }
+        if (this.alwaysReportSuccess)
+        {
+            if (Config.debug)
+            {
+                GroupingLogger.logDebug(String.format("Rule set to always_report_success: %s", this));
             }
             return false;
         }
