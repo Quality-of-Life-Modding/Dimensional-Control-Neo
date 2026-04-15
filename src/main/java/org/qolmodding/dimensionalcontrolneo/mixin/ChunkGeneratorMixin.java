@@ -56,8 +56,19 @@ public abstract class ChunkGeneratorMixin
         }
 
         Rules.parseRules(Rule.Type.STRUCTURE, registryAccess);
-        Rule rule = Rules.structureRules.get(dimensionLocation);
-        if (rule != null && rule.isRestricted(structureLocation))
+        Rule structureRule = Rules.structureRules.get(dimensionLocation);
+        if (structureRule != null)
+        {
+            if (structureRule.isRestricted(structureLocation))
+            {
+                callbackInfoReturnable.setReturnValue(false);
+            }
+            return;
+        }
+
+        Rules.parseRules(Rule.Type.DIMENSION, registryAccess);
+        Rule dimensionRule = Rules.dimensionRules.get(dimensionLocation);
+        if (dimensionRule != null && dimensionRule.isRestricted(structureLocation))
         {
             callbackInfoReturnable.setReturnValue(false);
         }
@@ -79,7 +90,6 @@ public abstract class ChunkGeneratorMixin
         ThreadLocalContext.clear();
     }
 }
-
 
 
 
