@@ -23,7 +23,8 @@ side = "BOTH"
 versionRange = "${minecraft_version_range}"
 [[dependencies.${mod_id}]]
 modId="bookshelf"
+mandatory=true
 type="required"
-versionRange="[20.2.13,]"
+versionRange="[20.2.15,]"
 ordering="NONE"
 side="BOTH"

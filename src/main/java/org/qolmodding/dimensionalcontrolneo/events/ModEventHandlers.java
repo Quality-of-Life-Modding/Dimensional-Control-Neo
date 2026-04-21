@@ -22,7 +22,7 @@ import static org.qolmodding.dimensionalcontrolneo.DimensionalControlNeo.MOD_ID;
 public class ModEventHandlers
 {
     @SubscribeEvent
-    private static void onLoad(final ModConfigEvent event)
+    public static void onLoad(final ModConfigEvent event)
     {
         Config.initialize();
     }
