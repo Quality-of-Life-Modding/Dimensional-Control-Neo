@@ -10,7 +10,7 @@ authors="${mod_authors}"
 description='''${mod_description}'''
 
 [[mixins]]
-config = "mixins.dimensionalcontrol.json"
+config = "mixins.dimensionalcontrolneo.json"
 
 [[dependencies.${mod_id}]]
     modId="neoforge"

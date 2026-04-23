@@ -1,0 +1,21 @@
+{
+  "required": true,
+  "package": "org.qolmodding.dimensionalcontrolneo.mixin",
+  "mixins": [
+    "ChunkGeneratorMixin",
+    "FeatureMixin",
+    "JigsawPlacementPlacerMixin",
+    "MobMixin",
+    "NaturalSpawnerMixin",
+    "PlaceCommandMixin",
+    "SpawnPlacementsMixin",
+    "StructureStartMixin",
+    "accessors.FeaturePoolElementAccessor",
+    "accessors.ListPoolElementAccessor",
+    "accessors.SinglePoolElementAccessor",
+    "accessors.StructureManagerAccessor"
+  ],
+  "refmap": "mixins.dimensionalcontrolneo.refmap.json",
+  "compatibilityLevel": "JAVA_21",
+  "minVersion": "0.8"
+}
