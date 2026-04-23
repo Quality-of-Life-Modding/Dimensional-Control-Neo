@@ -14,6 +14,7 @@ public class GameEventHandlers
     public static void onServerStarting(ServerStartedEvent event)
     {
         RegistryHelpers.saveRegistries(event.getServer());
+        Rules.parseRules(Rule.Type.DIMENSION, event.getServer().registryAccess());
         Rules.parseRules(Rule.Type.STRUCTURE, event.getServer().registryAccess());
         Rules.parseRules(Rule.Type.STRUCTURE_POOL_ELEMENT, event.getServer().registryAccess());
         Rules.parseRules(Rule.Type.FEATURE, event.getServer().registryAccess());

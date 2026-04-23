@@ -6,7 +6,6 @@ import com.google.gson.*;
 import com.google.gson.stream.JsonReader;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.resources.ResourceLocation;
-import org.apache.commons.lang3.NotImplementedException;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.BufferedReader;
@@ -21,12 +20,14 @@ public class Rules
     private static final Path definitionsFilePath = CONFIG_PATH.resolve(String.format("%s.json", "definitions"));
     private static final Path expandedDefinitionsFilePath = CONFIG_PATH.resolve(String.format("%s.json", "expanded-definitions"));
 
+    public static final Map<ResourceLocation, Rule> dimensionRules = new HashMap<>();
     public static final Map<ResourceLocation, Rule> structureRules = new HashMap<>();
     public static final Map<ResourceLocation, Rule> structurePoolElementRules = new HashMap<>();
     public static final Map<ResourceLocation, Rule> featureRules = new HashMap<>();
     public static final Map<ResourceLocation, Rule> entityRules = new HashMap<>();
     public static final Map<ResourceLocation, Rule> lootRules = new HashMap<>();
 
+    public static JsonArray unparsedDimensionRules = null;
     public static JsonArray unparsedStructureRules = null;
     public static JsonArray unparsedStructurePoolElementRules = null;
     public static JsonArray unparsedFeatureRules = null;
@@ -37,7 +38,14 @@ public class Rules
     {
         switch (ruleType)
         {
-            case DIMENSION -> throw new NotImplementedException();
+            case DIMENSION ->
+            {
+                if (unparsedDimensionRules != null)
+                {
+                    parseRuleArray(registryAccess, Rule.Type.DIMENSION);
+                    unparsedDimensionRules = null;
+                }
+            }
             case STRUCTURE ->
             {
                 if (unparsedStructureRules != null)
@@ -75,7 +83,7 @@ public class Rules
                 if (unparsedLootRules != null)
                 {
                     parseRuleArray(registryAccess, Rule.Type.LOOT);
-                    unparsedEntityRules = null;
+                    unparsedLootRules = null;
                 }
             }
         }
@@ -89,6 +97,13 @@ public class Rules
             {
                 Files.writeString(definitionsFilePath, """
                         {
+                            "dimensions": [
+                                {
+                                    "dimension": "minecraft:.+",
+                                    "whitelist": [],
+                                    "active": true
+                                }
+                            ],
                             "structures": [
                                 {
                                     "dimension": "minecraft:overworld",
@@ -138,6 +153,10 @@ public class Rules
                 if (root.isJsonObject())
                 {
                     JsonObject rootJsonObject = root.getAsJsonObject();
+                    if (rootJsonObject.has("dimensions"))
+                    {
+                        unparsedDimensionRules = rootJsonObject.getAsJsonArray("dimensions");
+                    }
                     if (rootJsonObject.has("structures"))
                     {
                         unparsedStructureRules = rootJsonObject.getAsJsonArray("structures");
@@ -176,6 +195,14 @@ public class Rules
     public static void saveExpandedJsonConfig()
     {
         JsonObject rootJsonObject = new JsonObject();
+
+        JsonArray dimensionsArray = new JsonArray();
+        for (Map.Entry<ResourceLocation, Rule> entry : dimensionRules.entrySet())
+        {
+            JsonObject dimensionRuleJsonObject = getRuleJson(entry);
+            dimensionsArray.add(dimensionRuleJsonObject);
+        }
+        rootJsonObject.add("dimensions", dimensionsArray);
 
         JsonArray structuresArray = new JsonArray();
         for (Map.Entry<ResourceLocation, Rule> entry : structureRules.entrySet())
@@ -256,7 +283,7 @@ public class Rules
     {
         JsonArray rulesJsonArray = switch (ruleType)
         {
-            case Rule.Type.DIMENSION -> throw new NotImplementedException();
+            case Rule.Type.DIMENSION -> unparsedDimensionRules;
             case Rule.Type.STRUCTURE -> unparsedStructureRules;
             case Rule.Type.STRUCTURE_POOL_ELEMENT -> unparsedStructurePoolElementRules;
             case Rule.Type.FEATURE -> unparsedFeatureRules;
@@ -265,7 +292,7 @@ public class Rules
         };
         Map<ResourceLocation, Rule> dimensionRuleMap = switch (ruleType)
         {
-            case Rule.Type.DIMENSION -> throw new NotImplementedException();
+            case Rule.Type.DIMENSION -> dimensionRules;
             case Rule.Type.STRUCTURE -> structureRules;
             case Rule.Type.STRUCTURE_POOL_ELEMENT -> structurePoolElementRules;
             case Rule.Type.FEATURE -> featureRules;
